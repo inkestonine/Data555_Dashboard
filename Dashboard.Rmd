@@ -1,0 +1,146 @@
+---
+title: "Recurrent Pattern of Staph Infection among Chindren in GA from 2002-2019"
+author: "Shifan Yan"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: scroll
+---
+
+```{r setup, include=FALSE}
+pacman::p_load(
+  tidyverse, table1, cowplot, plotly, htmlwidgets, stringr, DT, flexdashboard
+)
+
+staph_p <- read.csv("person-level_2002-2019.csv")
+staph_inf <- read.csv("infection-level_2002-2019.csv")
+
+staph_p <- staph_p %>%
+  left_join(
+    staph_inf %>%
+      group_by(MRN) %>%
+      summarise(
+        inf_count = n(),
+        mssa_count = sum(Staph_Type == "MSSA"),
+        mrsa_count = sum(Staph_Type == "MRSA")
+      ),
+    by = join_by(MRN)
+  ) %>%
+  filter(inf_count > 1)
+```
+
+Data Visualization
+=====================================
+
+Column {data-width=500, .tabset}
+-----------------------------------------------------------------------
+
+### Distribution of Infection Counts for Recur Patients in 2002-2009
+
+```{r}
+p <- ggplot(staph_p, aes(x = factor(inf_count), fill = Staph_Type_Status)) +
+  geom_bar(position = "dodge") +  # Create side-by-side bars grouped by Staph_Type_Status
+  labs(
+    x = "Infection Count",
+    y = "Number of Patients",  
+    fill = "Staph Type Status"
+  ) +
+  theme_cowplot() +
+  theme(
+    axis.text.y = element_text(size = 9),
+    axis.text.x = element_text(size = 9, angle = 45, hjust = 1),               # Tilt x-axis labels for readability
+    legend.text = element_text(size = 9),                            # Make legend text smaller
+    legend.title = element_text(size = 10),                          # Make legend title slightly larger
+    legend.key.size = unit(0.2, "cm")                                # Shrink legend key size
+  )
+
+
+# turn to interactive
+ggplotly(p, tooltip = "text") %>%
+  layout(
+    legend = list(orientation = "h", x = 0, y = -0.2),  # move legend to bottom
+    title = list(x = 0)  # left-align title
+  )
+#the tooltip = "text" code ensures a box of text is shown when hovering
+#over a datapoint
+```
+
+### Key Takeaways
+
+ - Most recurrent patients had **2 episodes**. 
+ - **MRSA is more common** than MSSA among children with repeated infections. 
+ - The interactive plot allows exploration by infection count and type status.
+
+
+Column {data-width=500 .tabset}
+-----------------------------------------------------------------------
+
+### Demographic Pattern of Recurrent Staph Infection of 2002-2019
+
+```{r}
+staph_p <- staph_p %>% 
+  mutate(
+    Recurrent_Status = factor(Recurrent_Status, levels = c("Recurrent after 365 days", "Recurrent within 365 days", "Recurrent after 365 days and within 365 days", "Single Episode")),
+    Race = str_to_title(Race) %>% factor(levels = c("White", "Black", "Other")),
+    Ethnicity = str_to_title(Ethnicity) %>% recode("Other" = "Other / Unknown") %>% factor(levels = c("Hispanic", "Non-Hispanic", "Other / Unknown")),
+    Insurance_Status = str_to_title(Insurance_Status) %>% recode("Other" = "Other / Unknown") %>% factor(levels = c("Public", "Private", "Self Pay", "Other / Unknown")),
+    Staph_Type_Status = factor(Staph_Type_Status, levels = c("MRSA", "MSSA", "Shifting"))
+  )
+
+summary_table <- table1(
+  ~ Sex + Age + Race + Ethnicity + Insurance_Status + Staph_Type_Status | Recurrent_Status,
+  data = staph_p, 
+  overall = "Total")
+
+# table1 to data.frame
+summary_df <- as.data.frame(summary_table)
+
+# interactive form
+datatable(summary_df, 
+          class = 'compact',
+          extensions = 'Buttons', 
+          options = list(
+            dom = 'Bfrtip',  # export button
+            buttons = c('copy', 'csv', 'excel', 'pdf', 'print'), 
+            pageLength = 50,  
+            scrollX = TRUE  
+          ),
+          rownames = FALSE)  # hide row number
+
+```
+
+### Key Takeaways
+
+ - **Older age at first recurrence** seen in patients with **later recurrence**(p < 0.001)
+ - **Race & Ethnicity differences** (p < 0.001): Recurrent infections more common among **White** and **non-Hispanic** children
+ - **Insurance status** associated with recurrence (p < 0.001): Recurrent cases had **more public insurance**, fewer **self-pay patients**
+ - **~25%** of all recurrent cases showed **Staph type shift** (MRSA ↔ MSSA) 
+
+
+Description
+===================================== 
+
+#### **Project Motivation and Sample Description**
+
+This project uses a confidential dataset of Staphylococcus infections from electronic health records between 2002 and 2019, collected from over 20,000 patients at Children’s Healthcare of Atlanta. It focuses on **recurrent Staph infections** across different demographic groups.
+
+After filtering for community-onset infections and excluding patients younger than 19 years old who live in Georgia, the study population consists of **20,361 patients**.
+
+The dataset includes:
+- **Infection Count**
+- **Demographic Variables**: Age, Sex, Race, Insurance Status
+- **Staph Type**: MRSA, MSSA, and Shifting types
+
+#### **Research Questions**
+
+1. How does recurrence status vary across demographic groups?
+2. Are certain groups more prone to recurrence?
+3. How do Staph types correlate with recurrence?
+
+#### **Public Health Relevance**
+
+This dashboard supports healthcare providers by helping identify **high-risk populations**, ultimately guiding interventions and policies targeting **recurrent Staph infections in pediatric populations**.
+
+#### **GitHub**
+
+This dashboard has been display in my [GitHub](https://github.com/inkestonine/Data555_Dashboard)
